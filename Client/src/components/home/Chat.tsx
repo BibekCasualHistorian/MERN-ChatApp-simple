@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input"; // Adjust import path as needed
 import { Button } from "@/components/ui/button"; // Adjust import path as needed
-import { ScrollArea } from "@/components/ui/scroll-area"; // Adjust import path as needed
+// Adjust import path as needed
 import { io, Socket } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/store/store";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-
-type Friend = {
-  _id: string;
-  username: string;
-};
+import ChatHeader from "../utils/ChatHeader";
+import ChatDisplay from "../utils/ChatDisplay";
 
 interface Message {
   _id: string;
@@ -33,7 +29,7 @@ interface RegisterResponse {
 const Chat = () => {
   const dispatch: AppDispatch = useDispatch();
 
-  const [friend, setFriend] = useState<Friend | null>(null);
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(true);
 
   const { _id } = useSelector((state: RootState) => state.user.data);
   const { id: chatPartnerId } = useParams();
@@ -43,79 +39,66 @@ const Chat = () => {
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  const [loading, setLoading] = useState<boolean>(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const chatPartnerIdRef = useRef(chatPartnerId); // Create a ref for chatPartnerId
 
   useEffect(() => {
     chatPartnerIdRef.current = chatPartnerId; // Update ref value whenever chatPartnerId changes
   }, [chatPartnerId]);
 
-  useEffect(() => {
-    const url = new URL(
-      `http://localhost:3000/api/auth/get-user/${chatPartnerId}`
-    );
+  const handleFetchMore = useCallback(async () => {
+    setLoading(true);
+    if (!nextCursor || !chatPartnerId) return;
+    const url = new URL(`http://localhost:3000/api/messages/history`);
+    url.searchParams.set("nextCursor", nextCursor);
+    url.searchParams.set("senderId", _id);
+    url.searchParams.set("receiverId", chatPartnerId);
+    console.log("url", url);
+    const { response, data } = await FetchApiWrapper(url, {}, dispatch);
+    if (response.ok) {
+      const { data: messages, nextCursor, success } = data;
 
-    const fetchData = async () => {
-      const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-      // console.log("data", data);
-      if (response.ok) {
-        // console.log("data in response", data.data);
-        setFriend(data.data);
+      if (success) {
+        setMessages((prevMessages) => [...prevMessages, ...messages]);
+        setNextCursor(nextCursor);
+        setHasMoreMessages(() => (nextCursor == null ? false : true));
       }
-    };
-    fetchData();
-  }, [chatPartnerId, dispatch]);
+    }
+    setLoading(false);
+  }, [dispatch, nextCursor, _id, chatPartnerId]);
 
-  useEffect(() => {
-    setMessages([]);
+  const fetchMessages = useCallback(async () => {
     const url = new URL(`http://localhost:3000/api/messages/history`);
     url.searchParams.append("senderId", _id);
     url.searchParams.append("receiverId", chatPartnerId ?? "");
-    const fetchData = async () => {
-      const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-      // console.log("data", data);
-      if (response.ok) {
-        // console.log("data in response", data.data);
-        const { messages } = data.data;
-        setMessages(messages);
+    const { response, data } = await FetchApiWrapper(url, {}, dispatch);
+    console.log("data", data);
+    if (response.ok) {
+      // console.log("data in response", data.data);
+      const { nextCursor } = data;
+      setNextCursor(nextCursor);
+      setHasMoreMessages(nextCursor ? true : false);
+      setMessages(data.data);
+
+      const scrollArea = scrollAreaRef.current;
+      if (scrollArea) {
+        scrollArea.scrollTop = scrollArea.scrollHeight;
       }
-    };
-    fetchData();
-  }, [dispatch, _id, chatPartnerId]);
-
-  // useEffect(() => {
-  //   const url = new URL(URLWithSameChatPartnerId);
-  //   const fetchData = async () => {
-  //     const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-  //     // console.log("data", data);
-  //     if (response.ok) {
-  //       // console.log("data in response", data.data);
-  //       const { messages } = data.data;
-  //       console.log("message in response", messages);
-  //       setMessages((prevMessages) => {
-  //         const newMessages = messages.filter(
-  //           (newMsg: any) =>
-  //             !prevMessages.some((oldMsg) => oldMsg._id === newMsg._id)
-  //         );
-  //         return [...newMessages, ...prevMessages];
-  //       });
-  //     }
-  //   };
-  //   fetchData();
-  // }, [dispatch, _id, URLWithSameChatPartnerId]);
-
-  // console.log("socket", socket);
-
-  // console.log("messages", messages);
-
-  const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  };
+  }, [chatPartnerId, dispatch, _id]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    setMessages([]);
+    setHasMoreMessages(true);
+    setNextCursor(null);
+    setLoading(false);
+    console.log("real here");
+
+    fetchMessages();
+  }, [chatPartnerId, fetchMessages]);
 
   useEffect(() => {
     // chatPartner is same as first as we don't want to reruns everytime chatPartnerId
@@ -185,54 +168,22 @@ const Chat = () => {
     }
   };
 
-  console.log("Messages", messages);
-
   return (
     <div
       className="p-4 h-screen grid"
       style={{ gridTemplateRows: "75px 1fr 75px" }}
     >
-      <div className=" flex item-center rounded-lg p-1.5 mb-4 bg-gray-100">
-        {/* Avatar */}
-        <Avatar className="w-12 h-12 mr-3">
-          <AvatarImage alt={friend?.username || "U"} />
-          <AvatarFallback>{friend?.username?.charAt(0) || "U"}</AvatarFallback>
-        </Avatar>
-        {/* Friend Info */}
-        <div className="flex flex-col gap-0">
-          <h2 className="text-lg font-semibold">
-            {friend?.username || "unavaible"}
-          </h2>
-          <p className="text-xs text-gray-500">{"Offline"}</p>
-        </div>
-      </div>
-      <ScrollArea
-        ref={scrollAreaRef}
-        className="bg-gray-100 justify-end items-end  p-4 rounded-lg shadow-sm overflow-y-auto"
-      >
-        <div className=" p-2 rounded-lg  space-y-2 flex flex-col-reverse ">
-          {messages.map((each) => (
-            <div
-              key={`${each.timeStamp}`}
-              className={`flex w-4/5 ${
-                each.senderId === _id
-                  ? "justify-end ml-auto"
-                  : "justify-start mr-auto"
-              }`}
-            >
-              <div
-                className={`px-4 py-1 text-balance rounded-lg text-white ${
-                  each.senderId === _id
-                    ? "bg-blue-500"
-                    : "bg-gray-500 text-black"
-                }`}
-              >
-                <p>{each.content}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+      <ChatHeader
+        id={chatPartnerId}
+        url={new URL(`http://localhost:3000/api/auth/get-user`)}
+      />
+      <ChatDisplay
+        scrollTimeoutRef={scrollTimeoutRef}
+        loading={loading}
+        messages={messages}
+        hasMoreMessages={hasMoreMessages}
+        handleFetchMore={handleFetchMore}
+      />
       <div className="flex rounded-lg items-center mt-3 px-3 w-full bg-gray-100">
         {/* Input field and Send button */}
         <Input

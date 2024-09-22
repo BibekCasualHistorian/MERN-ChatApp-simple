@@ -5,9 +5,9 @@ const getMessageHistory = async (req, res) => {
     const {
       senderId,
       receiverId,
-      limit = 20,
+      limit = 15,
       getAll = false,
-      cursor = null, // Cursor for pagination
+      nextCursor: cursor, // Cursor for pagination
     } = req.query;
 
     // Convert limit to number
@@ -37,7 +37,7 @@ const getMessageHistory = async (req, res) => {
     if (getAll) {
       // Fetch all messages without pagination
       messages = await Message.find(query).sort({ timeStamp: -1 }); // Sort messages by latest first
-      totalMessages = messages.length; // Total messages
+      totalMessages = messages.countDocuments; // Total messages
     } else {
       // Count total messages for pagination
       totalMessages = await Message.countDocuments(query);
@@ -58,15 +58,14 @@ const getMessageHistory = async (req, res) => {
       }
     }
 
+    console.log("messages", messages);
     // Prepare response
     res.status(200).json({
       success: true,
       statusCode: 200,
-      data: {
-        messages,
-        totalMessages,
-        nextCursor, // Pass next cursor to the client if more messages are available
-      },
+      data: messages,
+      nextCursor: nextCursor,
+      totalMessages,
     });
   } catch (error) {
     res.status(500).json({

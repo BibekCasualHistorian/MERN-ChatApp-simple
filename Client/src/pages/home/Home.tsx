@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppDispatch, RootState } from "@/store/store";
 import { useDispatch, useSelector } from "react-redux";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
 
-import { Link, Outlet, useParams } from "react-router-dom";
+import { Link, Outlet, useLocation, useParams } from "react-router-dom";
 
 import {
   Select,
@@ -42,7 +42,6 @@ type Group = {
 
 const Home = () => {
   const dispatch: AppDispatch = useDispatch();
-  const { _id } = useSelector((state: RootState) => state.user.data);
   const params = useParams();
   const [groupName, setGroupName] = useState("");
 
@@ -50,6 +49,26 @@ const Home = () => {
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
   const state = useSelector((state: RootState) => state.user);
+
+  const { _id } = state.data;
+  const location = useLocation();
+
+  // Track window width state and minimize re-renders
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  const handleResize = useCallback(() => {
+    const newIsMobile = window.innerWidth < 768;
+    if (newIsMobile !== isMobile) {
+      setIsMobile(newIsMobile);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [handleResize]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -132,133 +151,83 @@ const Home = () => {
   };
 
   return (
-    <div className="grid grid-cols-5 ">
-      <div className="hidden col-span-2 md:block h-screen p-4 border-r border-gray-200 bg-white ">
-        <div className="flex my-2 items-center  justify-between px-3">
-          <h2 className="text-lg font-semibold ">Friends ({users.length})</h2>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>Make Group</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="flex justify-center">
-                  Make a Group
-                </DialogTitle>
-                <DialogDescription className="text-center">
-                  write the name of your group and select members
-                </DialogDescription>
-              </DialogHeader>
-              <div>
-                <Input
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Group Name..."
-                />
-                <br />
-                <Select>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select-users" />
-                  </SelectTrigger>
-                  <SelectContent aria-multiselectable>
-                    {" "}
-                    {users.map((friend: Friend) => (
-                      <div key={friend._id} className="flex items-center p-2">
-                        <input
-                          type="checkbox"
-                          id={friend._id}
-                          checked={selectedUsers.includes(friend._id)}
-                          onChange={() => handleUserChange(friend._id)}
-                          className="mr-2"
-                        />
-                        <label htmlFor={friend._id} className="text-sm">
-                          {friend.username}
-                        </label>
-                      </div>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button className="w-full mt-4" onClick={handleGroupCreate}>
-                  Create Group
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        <ScrollArea className="space-y-4">
-          {users.map((friend: Friend) => (
-            <Link
-              key={friend._id}
-              to={`/chat/${friend._id}`}
-              className={`${
-                friend._id == params.id && "bg-gray-200"
-              } grid grid-cols-12  items-center p-3 my-1 rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
-            >
-              <div
-                className="grid col-span-11 gap-4 items-center "
-                style={{ gridTemplateColumns: "44px 1fr" }}
-              >
-                {/* Avatar */}
-                <Avatar className="w-12 h-12 mr-3">
-                  <AvatarImage src={friend.avatarUrl} alt={friend.username} />
-                  <AvatarFallback>{friend.username.charAt(0)}</AvatarFallback>
-                </Avatar>
-
-                {/* Name and Latest Message */}
-                <div className=" flex-1 overflow-hidden">
-                  <p className="text-sm mb-0.5  font-semibold overflow-hidden text-ellipsis">
-                    {friend.username}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {friend.latestMessage || "Unknown"}
-                  </p>
+    <div className="grid grid-cols-5">
+      {((isMobile && location.pathname == "/") || !isMobile) && (
+        <div className="col-span-full md:col-span-2 h-screen p-4 border-r border-gray-200 bg-white ">
+          <div className="flex my-2 items-center justify-between px-3">
+            <h2 className="text-lg font-semibold ">Friends ({users.length})</h2>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>Make Group</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex justify-center">
+                    Make a Group
+                  </DialogTitle>
+                  <DialogDescription className="text-center">
+                    write the name of your group and select members
+                  </DialogDescription>
+                </DialogHeader>
+                <div>
+                  <Input
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    placeholder="Group Name..."
+                  />
+                  <br />
+                  <Select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select-users" />
+                    </SelectTrigger>
+                    <SelectContent aria-multiselectable>
+                      {" "}
+                      {users.map((friend: Friend) => (
+                        <div key={friend._id} className="flex items-center p-2">
+                          <input
+                            type="checkbox"
+                            id={friend._id}
+                            checked={selectedUsers.includes(friend._id)}
+                            onChange={() => handleUserChange(friend._id)}
+                            className="mr-2"
+                          />
+                          <label htmlFor={friend._id} className="text-sm">
+                            {friend.username}
+                          </label>
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button className="w-full mt-4" onClick={handleGroupCreate}>
+                    Create Group
+                  </Button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-end space-x-2">
-                {/* Time */}
-                {/* <span className="text-xs text-gray-400">
-                  {friend.time || "U"}
-                </span> */}
-
-                {/* Online/Offline Indicator */}
-                <span
-                  className={`h-3 w-3 rounded-full ${
-                    friend.isOnline ? "bg-green-500" : "bg-gray-400"
-                  }`}
-                ></span>
-              </div>
-            </Link>
-          ))}
-        </ScrollArea>
-
-        {/* // groups  */}
-        <div>
-          <h1 className="text-1.5xl font-bold mt-3 mb-2 px-3">
-            Groups ({groups.length})
-          </h1>
-          <div>
-            {groups.map((friend: Group) => (
+              </DialogContent>
+            </Dialog>
+          </div>
+          <ScrollArea className="">
+            {users.map((friend: Friend) => (
               <Link
                 key={friend._id}
-                to={`/group/${friend._id}`}
+                to={`/chat/${friend._id}`}
                 className={`${
                   friend._id == params.id && "bg-gray-200"
-                } flex items-center justify-between p-3  rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
+                } grid grid-cols-12  items-center p-3 my-1 rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
               >
-                <div className="flex items-center">
+                <div
+                  className="grid col-span-11 gap-4 items-center "
+                  style={{ gridTemplateColumns: "44px 1fr" }}
+                >
                   {/* Avatar */}
                   <Avatar className="w-12 h-12 mr-3">
                     <AvatarImage src={friend.avatarUrl} alt={friend.username} />
-                    <AvatarFallback>
-                      {friend?.name.charAt(0) || "U"}
-                    </AvatarFallback>
+                    <AvatarFallback>{friend.username.charAt(0)}</AvatarFallback>
                   </Avatar>
 
                   {/* Name and Latest Message */}
-                  <div>
-                    <p className="text-sm font-semibold overflow-hidden">
-                      {friend?.name}
+                  <div className=" flex-1 overflow-hidden">
+                    <p className="text-sm mb-0.5  font-semibold overflow-hidden text-ellipsis">
+                      {friend.username}
                     </p>
                     <p className="text-xs text-gray-500 truncate">
                       {friend.latestMessage || "Unknown"}
@@ -266,9 +235,11 @@ const Home = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-end space-x-2">
                   {/* Time */}
-                  <span className="text-xs text-gray-400">{friend.time}</span>
+                  {/* <span className="text-xs text-gray-400">
+                  {friend.time || "U"}
+                </span> */}
 
                   {/* Online/Offline Indicator */}
                   <span
@@ -279,12 +250,71 @@ const Home = () => {
                 </div>
               </Link>
             ))}
+          </ScrollArea>
+
+          {/* // groups  */}
+          <div>
+            <h1 className="text-1.5xl font-bold mt-3 mb-2 px-3">
+              Groups ({groups.length})
+            </h1>
+            <div>
+              {groups.map((friend: Group) => (
+                <Link
+                  key={friend._id}
+                  to={`/group/${friend._id}`}
+                  className={`${
+                    friend._id == params.id && "bg-gray-200"
+                  } flex items-center justify-between p-3  rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
+                >
+                  <div className="flex items-center">
+                    {/* Avatar */}
+                    <Avatar className="w-12 h-12 mr-3">
+                      <AvatarImage
+                        src={friend.avatarUrl}
+                        alt={friend.username}
+                      />
+                      <AvatarFallback>
+                        {friend?.name.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    {/* Name and Latest Message */}
+                    <div>
+                      <p className="text-sm font-semibold overflow-hidden">
+                        {friend?.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {friend.latestMessage || "Unknown"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {/* Time */}
+                    <span className="text-xs text-gray-400">{friend.time}</span>
+
+                    {/* Online/Offline Indicator */}
+                    <span
+                      className={`h-3 w-3 rounded-full ${
+                        friend.isOnline ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></span>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="col-span-3  h-screen">
-        <Outlet />
-      </div>
+      )}
+
+      {((isMobile &&
+        (location.pathname.includes("chat") ||
+          location.pathname.includes("group"))) ||
+        !isMobile) && (
+        <div className="col-span-full md:col-span-3 h-screen">
+          <Outlet />
+        </div>
+      )}
     </div>
   );
 };

@@ -102,7 +102,7 @@ exports.addMember = async (req, res) => {
 
 // Get latest 20 messages from a group with cursor pagination
 exports.getGroupMessages = async (req, res) => {
-  const { cursor } = req.query; // `cursor` will be the timestamp of the last message received
+  const { nextCursor: cursor, limit = 50 } = req.query; // `cursor` will be the timestamp of the last message received
   const { id: groupId } = req.params;
 
   try {
@@ -121,15 +121,18 @@ exports.getGroupMessages = async (req, res) => {
       groupId: groupId,
     };
 
-    // If a cursor is provided, fetch messages older than the cursor (timestamp)
-    if (cursor) {
-      query.timeStamp = { $lt: cursor };
-    }
+    let nextCursor = null;
+
+    // Fetch messages with cursor-based pagination
+    const cursorDate = cursor ? new Date(parseInt(cursor, 10)) : null;
 
     // Fetch the latest 20 messages, sorted by timestamp (newest first)
-    const messages = await MessageModel.find(query)
+    const messages = await MessageModel.find({
+      ...query,
+      ...(cursorDate && { createdAt: { $lt: cursorDate } }),
+    })
       .sort({ timeStamp: -1 })
-      .limit(20);
+      .limit(limit);
 
     // If no messages found, return an empty array
     if (messages.length === 0) {
@@ -141,8 +144,10 @@ exports.getGroupMessages = async (req, res) => {
       });
     }
 
-    // Get the timestamp of the oldest message in this batch (for next cursor)
-    const nextCursor = messages[messages.length - 1].timeStamp;
+    // Set the nextCursor to the createdAt of the last message
+    if (messages.length === limit) {
+      nextCursor = messages[messages.length - 1].createdAt.getTime();
+    }
 
     return res.status(200).json({
       success: true,

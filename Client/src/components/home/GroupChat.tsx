@@ -1,24 +1,32 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppDispatch, RootState } from "@/store/store";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
 import { io, Socket } from "socket.io-client";
+import ChatHeader from "../utils/ChatHeader";
+import ChatDisplay from "../utils/ChatDisplay";
 // import "react-chat-elements/dist/main.css";
 // import { MessageBox } from "react-chat-elements";
 
-type Group = {
-  _id: string;
-  name: string;
-  members: [];
-  admin: string;
-};
+// type Group = {
+//   _id: string;
+//   name: string;
+//   members: [];
+//   admin: string;
+// };
+
+// type ResponseData = {
+//   data: [];
+//   success: boolean;
+//   statusCode: number;
+//   nextCursor: Date;
+// };
 
 type GroupMessage = {
+  _id: string;
   senderId: string;
   groupId: string;
   receiverId: null;
@@ -32,6 +40,13 @@ const GroupChat = () => {
   const { id } = useParams();
   const dispatch: AppDispatch = useDispatch();
 
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  console.log("nextCursor", nextCursor);
+
+  const [loading, setLoading] = useState<boolean>(false);
+
   const { _id } = useSelector((state: RootState) => state.user.data);
 
   const [socket, setSocket] = useState<Socket | null>();
@@ -39,44 +54,81 @@ const GroupChat = () => {
   const [newMessage, setNewMessage] = useState("");
 
   const [groupMessages, setGroupMessages] = useState<[]>([]);
-  const [group, setGroup] = useState<Group | null>(null);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-
+  const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(id); // Create a ref for chatPartnerId
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // get group
-  useEffect(() => {
-    // console.log("id", id);
-    const url = new URL(
-      `http://localhost:3000/api/groups/get-group-by-id/${id}`
-    );
-    const fetchData = async () => {
+  const fetchMessages = useCallback(
+    async (cursor: string | null = null) => {
+      if (!id) return;
+      setLoading(true);
+      const url = new URL(
+        `http://localhost:3000/api/groups/get-group-messages/${id}`
+      );
       const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-      // console.log("real", response, data);
       if (response.ok) {
-        setGroup(data.data);
+        const { data: messages, nextCursor, success } = data;
+        console.log(nextCursor, messages);
+        if (success) {
+          setGroupMessages((prevMessages) =>
+            cursor ? [...prevMessages, ...messages] : messages
+          );
+          setHasMoreMessages(nextCursor == null ? false : true);
+          setNextCursor(nextCursor);
+
+          const scrollArea = scrollAreaRef.current;
+          if (scrollArea) {
+            scrollArea.scrollTop = scrollArea.scrollHeight;
+          }
+        }
       }
-    };
-    fetchData();
-  }, [id, dispatch]);
+      setLoading(false);
+    },
+    [id, dispatch]
+  );
 
-  // console.log("isGroupMessage", groupMessages);
-
-  // get messagaes from groups
-  useEffect(() => {
+  const handleFetchMore = useCallback(async () => {
+    setLoading(true);
     const url = new URL(
       `http://localhost:3000/api/groups/get-group-messages/${id}`
     );
-    const fetchData = async () => {
-      const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-      // console.log("response, data", response, data);
-      if (response.ok) {
-        setGroupMessages(data.data);
-      }
-    };
-    fetchData();
-  }, [id, dispatch]);
+    url.searchParams.set("nextCursor", nextCursor);
+    console.log("url", url);
+    const { response, data } = await FetchApiWrapper(url, {}, dispatch);
+    if (response.ok) {
+      const { data: messages, nextCursor, success } = data;
+
+      setGroupMessages((prevMessages) => [...prevMessages, ...messages]);
+      setNextCursor(nextCursor);
+      setHasMoreMessages(nextCursor == null ? false : true);
+    }
+    setLoading(false);
+  }, [dispatch, id, nextCursor]);
+
+  const handleSocketSendMessage = () => {
+    if (socket) {
+      socket.emit("send-msg", {
+        content: newMessage,
+        senderId: _id,
+        isGroupMessage: true,
+        groupId: id,
+        timeStamp: Date.now(), // Add this to help with creating unique keys
+      });
+      setNewMessage("");
+    }
+  };
+
+  // get Group
+
+  // Initial message fetch on component mount (this will run only once)
+  useEffect(() => {
+    setGroupMessages([]);
+    setHasMoreMessages(true);
+    setNextCursor(null);
+    fetchMessages(); // Fetch the first batch of messages on load
+  }, [id, fetchMessages]);
 
   useEffect(() => {
     const newSocket = io("http://localhost:3000");
@@ -134,19 +186,7 @@ const GroupChat = () => {
     };
   }, [_id]);
 
-  const handleSocketSendMessage = () => {
-    if (socket) {
-      socket.emit("send-msg", {
-        content: newMessage,
-        senderId: _id,
-        isGroupMessage: true,
-        groupId: id,
-        timeStamp: Date.now(), // Add this to help with creating unique keys
-      });
-      setNewMessage("");
-    }
-  };
-
+  // for when we change the user so that groupId changes
   useEffect(() => {
     if (socket && id) {
       if (idRef.current == id) return;
@@ -167,47 +207,17 @@ const GroupChat = () => {
       className="p-4 h-screen grid"
       style={{ gridTemplateRows: "75px 1fr 75px" }}
     >
-      <div className=" flex item-center rounded-lg p-1.5 mb-4 bg-gray-100">
-        {/* Avatar */}
-        <Avatar className="w-12 h-12 mr-3">
-          <AvatarImage alt={group?.name || "U"} />
-          <AvatarFallback>{group?.name?.charAt(0) || "U"}</AvatarFallback>
-        </Avatar>
-        {/* Friend Info */}
-        <div className="flex flex-col gap-0">
-          <h2 className="text-lg font-semibold">
-            {group?.name || "unavaible"}
-          </h2>
-          <p className="text-xs text-gray-500">{"Offline"}</p>
-        </div>
-      </div>
-      <ScrollArea
-        ref={scrollAreaRef}
-        className="bg-gray-100 justify-end items-end  p-4 rounded-lg shadow-sm overflow-y-auto"
-      >
-        <div className="p-2 rounded-lg space-y-2 flex flex-col-reverse ">
-          {groupMessages.map((each: GroupMessage) => (
-            <div
-              key={`${each.timeStamp}`}
-              className={`flex w-4/5 ${
-                each.senderId === _id
-                  ? "justify-end ml-auto"
-                  : "justify-start mr-auto"
-              }`}
-            >
-              <div
-                className={`px-4 py-1 text-balance rounded-lg text-white ${
-                  each.senderId === _id
-                    ? "bg-blue-500"
-                    : "bg-gray-500 text-black"
-                }`}
-              >
-                <p>{each.content}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+      <ChatHeader
+        id={id}
+        url={new URL(`http://localhost:3000/api/groups/get-group-by-id`)}
+      />
+      <ChatDisplay
+        scrollTimeoutRef={scrollTimeoutRef}
+        loading={loading}
+        messages={groupMessages}
+        hasMoreMessages={hasMoreMessages}
+        handleFetchMore={handleFetchMore}
+      />
       <div className="flex rounded-lg items-center mt-3 px-3 w-full bg-gray-100">
         {/* Input field and Send button */}
         <Input

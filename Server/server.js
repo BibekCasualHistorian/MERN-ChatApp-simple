@@ -229,11 +229,11 @@ io.on("connection", function (socket) {
         console.log("message saved to DB", oneToOneMessage);
         const recipientSocketId = connectedUserIdToSocketId.get(receiverId);
 
-        if (!recipientSocketId) {
-          return socket.emit("error", {
-            message: "User not found or offline",
-          });
-        }
+        // if (!recipientSocketId) {
+        //   return socket.emit("error", {
+        //     message: "User not found or offline",
+        //   });
+        // }
         io.to(recipientSocketId).emit("receive-message", data); // send to user who have specific socket id
         socket.emit("receive-message", data);
       }
