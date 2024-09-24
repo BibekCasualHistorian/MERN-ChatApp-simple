@@ -58,7 +58,7 @@ const getMessageHistory = async (req, res) => {
       }
     }
 
-    console.log("messages", messages);
+    // console.log("messages", messages);
     // Prepare response
     res.status(200).json({
       success: true,

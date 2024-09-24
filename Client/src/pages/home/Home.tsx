@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppDispatch, RootState } from "@/store/store";
 import { useDispatch, useSelector } from "react-redux";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
@@ -24,20 +24,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { io } from "socket.io-client";
 
 type Friend = {
   _id: string;
   username: string;
   latestMessage: string;
   time: string;
-  isOnline: boolean;
+
   avatarUrl: string;
 };
 
 type Group = {
   _id: string;
   name: string;
-  latestMessage: string;
+  members: [];
+  admin: string;
 };
 
 const Home = () => {
@@ -55,6 +57,36 @@ const Home = () => {
 
   // Track window width state and minimize re-renders
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  const [socket, setSocket] = useState(null);
+
+  const [activeUsers, setActiveUsers] = useState([]);
+
+  // console.log("socket in home: ", socket);
+
+  useEffect(() => {
+    if (socket) return;
+    const newSocket = io("http://localhost:3000");
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      console.log("Connected to server in top");
+      newSocket.emit("register", { _id: _id });
+    });
+
+    newSocket.on("active-users", (data) => {
+      setActiveUsers(data);
+      // console.log(data);
+    });
+
+    newSocket.on("disconnect", () => {
+      console.log("Disconnected from server");
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [_id]);
 
   const handleResize = useCallback(() => {
     const newIsMobile = window.innerWidth < 768;
@@ -206,50 +238,54 @@ const Home = () => {
             </Dialog>
           </div>
           <ScrollArea className="">
-            {users.map((friend: Friend) => (
-              <Link
-                key={friend._id}
-                to={`/chat/${friend._id}`}
-                className={`${
-                  friend._id == params.id && "bg-gray-200"
-                } grid grid-cols-12  items-center p-3 my-1 rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
-              >
-                <div
-                  className="grid col-span-11 gap-4 items-center "
-                  style={{ gridTemplateColumns: "44px 1fr" }}
+            {users.map((friend: Friend) => {
+              const { _id, username } = friend;
+              const isOnline = activeUsers.includes(friend._id);
+              return (
+                <Link
+                  key={_id}
+                  to={`/chat/${_id}`}
+                  className={`${
+                    _id == params.id && "bg-gray-200"
+                  } grid grid-cols-12  items-center p-3 my-1 rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
                 >
-                  {/* Avatar */}
-                  <Avatar className="w-12 h-12 mr-3">
-                    <AvatarImage src={friend.avatarUrl} alt={friend.username} />
-                    <AvatarFallback>{friend.username.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                  <div
+                    className="grid col-span-11 gap-4 items-center "
+                    style={{ gridTemplateColumns: "44px 1fr" }}
+                  >
+                    {/* Avatar */}
+                    <Avatar className="w-12 h-12 mr-3">
+                      <AvatarImage alt={username} />
+                      <AvatarFallback>{username.charAt(0)}</AvatarFallback>
+                    </Avatar>
 
-                  {/* Name and Latest Message */}
-                  <div className=" flex-1 overflow-hidden">
-                    <p className="text-sm mb-0.5  font-semibold overflow-hidden text-ellipsis">
-                      {friend.username}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {friend.latestMessage || "Unknown"}
-                    </p>
+                    {/* Name and Latest Message */}
+                    <div className=" flex-1 overflow-hidden">
+                      <p className="text-sm mb-0.5  font-semibold overflow-hidden text-ellipsis">
+                        {username}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {"Unknown"}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-end space-x-2">
-                  {/* Time */}
-                  {/* <span className="text-xs text-gray-400">
-                  {friend.time || "U"}
+                  <div className="flex items-center justify-end space-x-2">
+                    {/* Time */}
+                    {/* <span className="text-xs text-gray-400">
+                  {time || "U"}
                 </span> */}
 
-                  {/* Online/Offline Indicator */}
-                  <span
-                    className={`h-3 w-3 rounded-full ${
-                      friend.isOnline ? "bg-green-500" : "bg-gray-400"
-                    }`}
-                  ></span>
-                </div>
-              </Link>
-            ))}
+                    {/* Online/Offline Indicator */}
+                    <span
+                      className={`h-3 w-3 rounded-full ${
+                        isOnline ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></span>
+                  </div>
+                </Link>
+              );
+            })}
           </ScrollArea>
 
           {/* // groups  */}
@@ -258,50 +294,55 @@ const Home = () => {
               Groups ({groups.length})
             </h1>
             <div>
-              {groups.map((friend: Group) => (
-                <Link
-                  key={friend._id}
-                  to={`/group/${friend._id}`}
-                  className={`${
-                    friend._id == params.id && "bg-gray-200"
-                  } flex items-center justify-between p-3  rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
-                >
-                  <div className="flex items-center">
-                    {/* Avatar */}
-                    <Avatar className="w-12 h-12 mr-3">
-                      <AvatarImage
-                        src={friend.avatarUrl}
-                        alt={friend.username}
-                      />
-                      <AvatarFallback>
-                        {friend?.name.charAt(0) || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+              {groups.map((group: Group) => {
+                // console.log("group", group);
+                const { _id: groupID, username, members } = group;
+                const isOnline = members.some(
+                  (member) => member !== _id && activeUsers.includes(member)
+                );
+                // console.log("isOneline", groupID, members, isOnline);
+                return (
+                  <Link
+                    key={groupID}
+                    to={`/group/${groupID}`}
+                    className={`${
+                      groupID == params.id && "bg-gray-200"
+                    } flex items-center justify-between p-3  rounded-lg shadow-sm hover:bg-gray-100 transition cursor-pointer`}
+                  >
+                    <div className="flex items-center">
+                      {/* Avatar */}
+                      <Avatar className="w-12 h-12 mr-3">
+                        <AvatarImage alt={username} />
+                        <AvatarFallback>
+                          {group?.name.charAt(0) || "U"}
+                        </AvatarFallback>
+                      </Avatar>
 
-                    {/* Name and Latest Message */}
-                    <div>
-                      <p className="text-sm font-semibold overflow-hidden">
-                        {friend?.name}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {friend.latestMessage || "Unknown"}
-                      </p>
+                      {/* Name and Latest Message */}
+                      <div>
+                        <p className="text-sm font-semibold overflow-hidden">
+                          {group?.name}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {"Unknown"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    {/* Time */}
-                    <span className="text-xs text-gray-400">{friend.time}</span>
+                    <div className="flex items-center space-x-2">
+                      {/* Time */}
+                      {/* <span className="text-xs text-gray-400">{time}</span> */}
 
-                    {/* Online/Offline Indicator */}
-                    <span
-                      className={`h-3 w-3 rounded-full ${
-                        friend.isOnline ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    ></span>
-                  </div>
-                </Link>
-              ))}
+                      {/* Online/Offline Indicator */}
+                      <span
+                        className={`h-3 w-3 rounded-full ${
+                          isOnline ? "bg-green-500" : "bg-gray-400"
+                        }`}
+                      ></span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -312,7 +353,7 @@ const Home = () => {
           location.pathname.includes("group"))) ||
         !isMobile) && (
         <div className="col-span-full md:col-span-3 h-screen">
-          <Outlet />
+          <Outlet context={{ socket, activeUsers }} />
         </div>
       )}
     </div>

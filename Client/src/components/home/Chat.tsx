@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useOutletContext, useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input"; // Adjust import path as needed
 import { Button } from "@/components/ui/button"; // Adjust import path as needed
 // Adjust import path as needed
-import { io, Socket } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/store/store";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
 import ChatHeader from "../utils/ChatHeader";
 import ChatDisplay from "../utils/ChatDisplay";
+import { Socket } from "socket.io-client";
 
 interface Message {
   _id: string;
@@ -26,8 +26,12 @@ interface RegisterResponse {
   socketId: string;
 }
 
+type ContextType = { socket: Socket | null; activeUsers: [] | null };
+
 const Chat = () => {
   const dispatch: AppDispatch = useDispatch();
+
+  const { socket, activeUsers } = useOutletContext<ContextType>();
 
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(true);
 
@@ -35,9 +39,6 @@ const Chat = () => {
   const { id: chatPartnerId } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [socket, setSocket] = useState<Socket | null>();
-
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -56,7 +57,7 @@ const Chat = () => {
     url.searchParams.set("nextCursor", nextCursor);
     url.searchParams.set("senderId", _id);
     url.searchParams.set("receiverId", chatPartnerId);
-    console.log("url", url);
+    // console.log("url", url);
     const { response, data } = await FetchApiWrapper(url, {}, dispatch);
     if (response.ok) {
       const { data: messages, nextCursor, success } = data;
@@ -75,18 +76,13 @@ const Chat = () => {
     url.searchParams.append("senderId", _id);
     url.searchParams.append("receiverId", chatPartnerId ?? "");
     const { response, data } = await FetchApiWrapper(url, {}, dispatch);
-    console.log("data", data);
+    // console.log("data", data);
     if (response.ok) {
       // console.log("data in response", data.data);
       const { nextCursor } = data;
       setNextCursor(nextCursor);
       setHasMoreMessages(nextCursor ? true : false);
       setMessages(data.data);
-
-      const scrollArea = scrollAreaRef.current;
-      if (scrollArea) {
-        scrollArea.scrollTop = scrollArea.scrollHeight;
-      }
     }
   }, [chatPartnerId, dispatch, _id]);
 
@@ -95,65 +91,65 @@ const Chat = () => {
     setHasMoreMessages(true);
     setNextCursor(null);
     setLoading(false);
-    console.log("real here");
 
     fetchMessages();
   }, [chatPartnerId, fetchMessages]);
 
   useEffect(() => {
+    if (!socket) return;
     // chatPartner is same as first as we don't want to reruns everytime chatPartnerId
     // changes so chatPartner remeain same even when click to next user and this causes pro
     // blem in "send-msg" socket event so we are going to use useRef
-    const newSocket = io("http://localhost:3000");
-    setSocket(newSocket);
+    // const newSocket = io("http://localhost:3000");
+    // setSocket(newSocket);
 
-    newSocket.on("connect", () => {
-      console.log("Connected to the server:");
-      newSocket.emit("register", { _id });
-    });
+    // socket.on("connect", () => {
+    //   console.log("Connected to the server in Chat.tsx:");
+    //   socket.emit("register", { _id });
+    // });
 
-    newSocket.on("new-user-connected", (data: RegisterResponse) => {
+    socket.on("new-user-connected", (data: RegisterResponse) => {
       console.log("new-user-connected", data);
     });
 
-    newSocket.on("new-user-connected-notice", (data) => {
+    socket.on("new-user-connected-notice", (data) => {
       console.log("new-user-connected-notice : ", data);
     });
 
-    newSocket.on("user-disconnected", (data) => {
+    socket.on("user-disconnected", (data) => {
       console.log("user-disconnected", data);
     });
 
-    newSocket.on("user-disconnected-notice", (data) => {
+    socket.on("user-disconnected-notice", (data) => {
       console.log("user-disconnected-notice", data);
     });
 
-    newSocket.on("receive-message", (data: Message) => {
-      console.log(_id, chatPartnerId);
-      console.log("chatPartnerIdRef", chatPartnerIdRef.current);
+    socket.on("receive-message", (data: Message) => {
+      // console.log(_id, chatPartnerId);
+      // console.log("chatPartnerIdRef", chatPartnerIdRef.current);
       console.log("receive-message", data);
       if (data.senderId == _id && data.receiverId == chatPartnerIdRef.current) {
-        console.log("here is it up");
+        // console.log("here is it up");
         setMessages((prevState) => [data, ...prevState]);
       }
       if (data.senderId == chatPartnerIdRef.current && data.receiverId == _id) {
-        console.log("here is it down");
+        // console.log("here is it down");
         setMessages((prevState) => [data, ...prevState]);
       }
     });
 
-    // newSocket.on("disconnect", () => {
+    // socket.on("disconnect", () => {
     //   console.log("Disconnected from the server");
     // });
 
-    newSocket.on("chat-message", (data: Message) => {
+    socket.on("chat-message", (data: Message) => {
       console.log("chat-message in client", data);
     });
     // Cleanup on component unmount
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [_id]);
+    // return () => {
+    //   socket.disconnect();
+    // };
+  }, [_id, socket]);
 
   const socketSendMessage = () => {
     if (socket) {
@@ -174,7 +170,11 @@ const Chat = () => {
       style={{ gridTemplateRows: "75px 1fr 75px" }}
     >
       <ChatHeader
+        isActive={
+          activeUsers != null && activeUsers.includes(chatPartnerId) ? 10 : 0
+        }
         id={chatPartnerId}
+        activeMembers={null}
         url={new URL(`http://localhost:3000/api/auth/get-user`)}
       />
       <ChatDisplay

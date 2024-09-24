@@ -13,6 +13,12 @@ const groupSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    latestMessage: {
+      // Add latestMessage field
+      content: { type: String },
+      senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      timeStamp: { type: Date },
+    },
     admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

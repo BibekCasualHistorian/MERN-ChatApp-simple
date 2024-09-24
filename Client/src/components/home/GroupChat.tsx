@@ -2,12 +2,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AppDispatch, RootState } from "@/store/store";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams } from "react-router-dom";
+import { useOutletContext, useParams } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
-import { io, Socket } from "socket.io-client";
 import ChatHeader from "../utils/ChatHeader";
 import ChatDisplay from "../utils/ChatDisplay";
+import { Socket } from "socket.io-client";
 // import "react-chat-elements/dist/main.css";
 // import { MessageBox } from "react-chat-elements";
 
@@ -25,16 +25,18 @@ import ChatDisplay from "../utils/ChatDisplay";
 //   nextCursor: Date;
 // };
 
-type GroupMessage = {
-  _id: string;
-  senderId: string;
-  groupId: string;
-  receiverId: null;
-  isRead: boolean;
-  timeStamp: Date;
-  content: string;
-  isGroupMessage: boolean;
-};
+// type GroupMessage = {
+//   _id: string;
+//   senderId: string;
+//   groupId: string;
+//   receiverId: null;
+//   isRead: boolean;
+//   timeStamp: Date;
+//   content: string;
+//   isGroupMessage: boolean;
+// };
+
+type ContextType = { socket: Socket | null; activeUsers: [] };
 
 const GroupChat = () => {
   const { id } = useParams();
@@ -43,17 +45,15 @@ const GroupChat = () => {
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
-  console.log("nextCursor", nextCursor);
-
   const [loading, setLoading] = useState<boolean>(false);
 
   const { _id } = useSelector((state: RootState) => state.user.data);
 
-  const [socket, setSocket] = useState<Socket | null>();
-
   const [newMessage, setNewMessage] = useState("");
 
   const [groupMessages, setGroupMessages] = useState<[]>([]);
+
+  const { socket, activeUsers } = useOutletContext<ContextType>();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -70,7 +70,7 @@ const GroupChat = () => {
       const { response, data } = await FetchApiWrapper(url, {}, dispatch);
       if (response.ok) {
         const { data: messages, nextCursor, success } = data;
-        console.log(nextCursor, messages);
+        // console.log(nextCursor, messages);
         if (success) {
           setGroupMessages((prevMessages) =>
             cursor ? [...prevMessages, ...messages] : messages
@@ -95,7 +95,7 @@ const GroupChat = () => {
       `http://localhost:3000/api/groups/get-group-messages/${id}`
     );
     url.searchParams.set("nextCursor", nextCursor);
-    console.log("url", url);
+    // console.log("url", url);
     const { response, data } = await FetchApiWrapper(url, {}, dispatch);
     if (response.ok) {
       const { data: messages, nextCursor, success } = data;
@@ -131,60 +131,67 @@ const GroupChat = () => {
   }, [id, fetchMessages]);
 
   useEffect(() => {
-    const newSocket = io("http://localhost:3000");
-    setSocket(newSocket);
-
     // console.log("rendered main useEffect");
+    if (!socket) return;
 
-    newSocket.on("connect", () => {
-      console.log("connected to server");
-      newSocket.emit("register", { _id: _id });
-      newSocket.emit("join-group", {
-        groupId: idRef.current,
-        userId: _id,
-      });
+    socket.emit("join-group", {
+      groupId: idRef.current,
+      userId: _id,
     });
 
-    newSocket.on("new-user-connected", (data) => {
+    const handleNewUserConnected = (data) => {
       console.log("data in new-user-connected", data);
-    });
+    };
 
-    newSocket.on("room-joined", (data) => {
-      console.log(data);
-    });
+    const handleRoomJoined = (data) => {
+      console.log("room joined", data);
+    };
 
-    newSocket.on("room-joined-notice", (data) => {
-      console.log(data);
-    });
+    const handleRoomJoinedNotice = (data) => {
+      console.log("room-joined-notice", data);
+    };
 
-    // newSocket.on("");
+    const handleGroupLeft = (data) => {
+      console.log("group-left", data);
+    };
 
-    newSocket.on("disconnect", () => {
-      console.log("disconencted from socket");
-    });
+    const handleGroupLeftNotice = (data) => {
+      console.log("group-left-notice", data);
+    };
 
-    newSocket.on("group-left", (data) => {
-      console.log(data);
-    });
-
-    newSocket.on("group-left-notice", (data) => {
-      console.log(data);
-    });
-
-    newSocket.on("receive-message", (data) => {
-      console.log("receive-group-message", data.data);
+    const handleReceiveMessage = (data) => {
       const { isGroupMessage } = data.data;
       if (isGroupMessage) {
-        setGroupMessages((prevState: []) => {
-          console.log("prevState", prevState);
-          return [data.data, ...prevState];
-        });
+        setGroupMessages((prevState) => [data.data, ...prevState]);
       }
-    });
-    return () => {
-      newSocket.disconnect();
     };
-  }, [_id]);
+    const handleAlreadyJoined = (data: { message: string }) => {
+      console.log(data);
+    };
+
+    socket.on("new-user-connected", handleNewUserConnected);
+
+    socket.on("already-joined", handleAlreadyJoined);
+
+    socket.on("room-joined", handleRoomJoined);
+
+    socket.on("room-joined-notice", handleRoomJoined);
+
+    socket.on("group-left", handleGroupLeft);
+
+    socket.on("group-left-notice", handleGroupLeftNotice);
+
+    socket.on("receive-message", handleReceiveMessage);
+
+    return () => {
+      socket.off("new-user-connected", handleNewUserConnected);
+      socket.off("room-joined", handleRoomJoined);
+      socket.off("room-joined-notice", handleRoomJoinedNotice);
+      socket.off("group-left", handleGroupLeft);
+      socket.off("group-left-notice", handleGroupLeftNotice);
+      socket.off("receive-message", handleReceiveMessage);
+    };
+  }, [_id, socket]);
 
   // for when we change the user so that groupId changes
   useEffect(() => {
@@ -193,7 +200,7 @@ const GroupChat = () => {
       const data = { groupId: idRef.current, userId: _id };
       socket.emit("leave-group", data);
 
-      console.log("Switching group from:", idRef.current, "to:", id);
+      // console.log("Switching group from:", idRef.current, "to:", id);
 
       data.groupId = id;
       socket.emit("join-group", data);
@@ -209,6 +216,8 @@ const GroupChat = () => {
     >
       <ChatHeader
         id={id}
+        isActive={null}
+        activeUsers={activeUsers}
         url={new URL(`http://localhost:3000/api/groups/get-group-by-id`)}
       />
       <ChatDisplay

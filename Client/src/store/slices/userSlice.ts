@@ -25,7 +25,7 @@ const userSlice = createSlice({
       state.error = null;
     },
     loginSuccess(state, action: PayloadAction<any>) {
-      console.log("payload in loginSucess", action);
+      // console.log("payload in loginSucess", action);
       // Replace `any` with user data type
       state.data = action.payload;
       state.isAuthenticated = true;

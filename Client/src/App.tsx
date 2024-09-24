@@ -16,35 +16,35 @@ import SelectLink from "./components/home/SelectLink";
 
 function App() {
   return (
-    <div className="">
-      <BrowserRouter>
-        <Routes>
-          {/* Protected Routes  */}
+    <BrowserRouter>
+      {/* <SocketProvider> */}
+      <Routes>
+        {/* Protected Routes  */}
 
-          <Route element={<PrivateRoutes />}>
-            <Route path="" element={<Home />}>
-              <Route index element={<SelectLink />} />
-              <Route path="/chat/:id" element={<Chat />} />
-              <Route path="/group/:id" element={<GroupChat />} />
-            </Route>
+        <Route element={<PrivateRoutes />}>
+          <Route path="" element={<Home />}>
+            <Route index element={<SelectLink />} />
+            <Route path="/chat/:id" element={<Chat />} />
+            <Route path="/group/:id" element={<GroupChat />} />
           </Route>
+        </Route>
 
-          {/* Public Auth Routes  */}
-          <Route element={<PublicRoutes />}>
-            <Route path="/auth">
-              <Route path="login" element={<Login />} />
-              <Route path="register" element={<Register />} />
-              <Route path="verify-email" element={<VerifyEmail />} />
-              <Route path="forgot-password" element={<ForgotPassword />} />
-              <Route path="reset-password/:token" element={<ResetPassword />} />
-            </Route>
+        {/* Public Auth Routes  */}
+        <Route element={<PublicRoutes />}>
+          <Route path="/auth">
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="verify-email" element={<VerifyEmail />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password/:token" element={<ResetPassword />} />
           </Route>
+        </Route>
 
-          {/* Catch-All Route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </div>
+        {/* Catch-All Route */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      {/* </SocketProvider> */}
+    </BrowserRouter>
   );
 }
 

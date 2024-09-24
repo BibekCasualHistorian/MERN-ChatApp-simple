@@ -31,7 +31,7 @@ const ChatDisplay = ({
 }: ChatDisplayProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  console.log("dispalying in chatDispaly");
+  // console.log("dispalying in chatDispaly");
   const { _id } = useSelector((state: RootState) => state.user.data);
 
   const handleScroll = useCallback(() => {
@@ -42,11 +42,11 @@ const ChatDisplay = ({
       clearTimeout(scrollTimeoutRef.current);
     }
 
-    console.log(
-      "scrollAre.scrollTop == 0",
-      scrollArea.scrollTop,
-      scrollAreaRef.current
-    );
+    // console.log(
+    //   "scrollAre.scrollTop == 0",
+    //   scrollArea.scrollTop,
+    //   scrollAreaRef.current
+    // );
 
     // Check if the user has reached the top of the scrollable area
     if (scrollArea.scrollTop === 0 && hasMoreMessages && !loading) {
@@ -57,7 +57,7 @@ const ChatDisplay = ({
   }, [hasMoreMessages, loading, handleFetchMore, scrollTimeoutRef]);
 
   useEffect(() => {
-    console.log("scrollAreaRef", scrollAreaRef.current);
+    // console.log("scrollAreaRef", scrollAreaRef.current);
     const scrollArea = scrollAreaRef.current;
     if (scrollArea) {
       scrollArea.addEventListener("scroll", handleScroll);
@@ -92,7 +92,7 @@ const ChatDisplay = ({
         }
         scrollableTarget="scrollAreaRef"
       >
-        <div className=" p-2 rounded-lg  space-y-2 flex flex-col-reverse ">
+        <div className=" p-2 rounded-lg  gap-2 flex flex-col-reverse ">
           {messages.map((each) => (
             <div
               key={`${each.timeStamp}`}

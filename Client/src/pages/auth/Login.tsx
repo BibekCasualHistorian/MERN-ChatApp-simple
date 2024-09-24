@@ -58,7 +58,7 @@ const Login = () => {
 
       const data = await response.json();
 
-      console.log("data in login", data);
+      // console.log("data in login", data);
 
       setIsLoading(false);
 

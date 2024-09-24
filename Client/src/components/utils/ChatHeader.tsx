@@ -3,24 +3,33 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { AppDispatch } from "@/store/store";
 import { useDispatch } from "react-redux";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
-import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
-import { FaArrowCircleLeft, FaBackspace } from "react-icons/fa";
+import { FaArrowCircleLeft } from "react-icons/fa";
 
 interface ChatHeaderProps {
   id: string | undefined;
+  isActive?: number | null;
+  activeUsers?: [] | null;
   url: URL;
 }
 
 interface FriendOrGroup {
   name?: string;
   username?: string;
+  members?: [];
 }
 
-const ChatHeader: React.FC<ChatHeaderProps> = ({ id, url }) => {
+const ChatHeader: React.FC<ChatHeaderProps> = ({
+  id,
+  url,
+  isActive,
+  activeUsers,
+}) => {
+  // console.log("activeUsers", activeUsers);
   const [friendOrGroup, setFriendOrGroup] = useState<FriendOrGroup | null>(
     null
   );
+  const [groupActiveMembers, setGroupActiveMembers] = useState<any[]>([]);
 
   const dispatch = useDispatch<AppDispatch>();
 
@@ -37,6 +46,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ id, url }) => {
     fetchHeader();
   }, [fetchHeader]);
 
+  // Filter active members only for group chats
+  useEffect(() => {
+    if (isActive === null && friendOrGroup?.members && activeUsers) {
+      // Filter activeUsers based on group members
+      const groupMemberIds = friendOrGroup.members.map((member) => member);
+      const filteredActiveUsers = activeUsers.filter((user) =>
+        groupMemberIds.includes(user)
+      );
+      setGroupActiveMembers(filteredActiveUsers);
+    }
+  }, [isActive, friendOrGroup, activeUsers]);
+
+  // console.log("groupActiveMembers", groupActiveMembers);
+
   const avatarName = friendOrGroup?.name || friendOrGroup?.username || "U";
   const displayName =
     friendOrGroup?.name || friendOrGroup?.username || "unavailable";
@@ -50,14 +73,23 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ id, url }) => {
         <FaArrowCircleLeft />
       </Link>
       {/* Avatar */}
-      <Avatar className="w-12 h-12 mr-3 border-2 ml-3">
+      <Avatar className="w-10 h-10 mr-3 border-2 ml-3">
         <AvatarImage alt={avatarName} />
         <AvatarFallback>{avatarName.charAt(0).toUpperCase()}</AvatarFallback>
       </Avatar>
       {/* Friend Info */}
-      <div className="flex flex-col gap-0">
+      <div className="flex flex-col border gap-0">
         <h2 className="text-lg font-semibold">{displayName}</h2>
-        <p className="text-xs text-gray-500">Offline</p>
+        {isActive !== null ? (
+          <p className="text-xs text-gray-500">
+            {isActive ? "Online" : "Offline"}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-500">
+            {groupActiveMembers.length} member
+            {groupActiveMembers.length > 1 ? "s are" : " is"} online
+          </p>
+        )}
       </div>
     </div>
   );
