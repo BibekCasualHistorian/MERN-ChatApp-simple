@@ -82,6 +82,11 @@ const AuthCard: React.FC<AuthCardProps> = ({
             disabled={isLoading}
             className="w-full mt-2"
             onClick={onClick}
+            onKeyDown={(e) => {
+              if (e.key == "Enter") {
+                e.preventDefault();
+              }
+            }}
           >
             {buttonText || "Submit"}
           </Button>

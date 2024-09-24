@@ -150,7 +150,7 @@ module.exports = (io) => {
             { new: true } // Return the updated document
           );
 
-          console.log("group message send to DB", { data: groupMessage });
+          // console.log("group message send to DB", { data: groupMessage });
           // socket.broadcast
           //   .to(groupId)
           //   .emit("receive-message", { data: groupMessage }); // send to everyone except itself in the room
@@ -168,7 +168,7 @@ module.exports = (io) => {
             content: content,
             timeStamp: timeStamp,
           });
-          console.log("message saved to DB", oneToOneMessage);
+          // console.log("message saved to DB", oneToOneMessage);
           const recipientSocketId = connectedUserIdToSocketId.get(receiverId);
 
           // if (!recipientSocketId) {
@@ -176,13 +176,14 @@ module.exports = (io) => {
           //     message: "User not found or offline",
           //   });
           // }
-          io.to(recipientSocketId).emit("receive-message", data); // send to user who have specific socket id
-          socket.emit("receive-message", data);
+          io.to(recipientSocketId).emit("receive-message", {
+            data: oneToOneMessage,
+          }); // send to user who have specific socket id
+          socket.emit("receive-message", { data: oneToOneMessage });
         }
       } catch (error) {
         console.log("error in send-msg", error);
       }
-      io.emit("active-users", handleActiveUsers());
     });
 
     socket.on("leave-group", async (data) => {

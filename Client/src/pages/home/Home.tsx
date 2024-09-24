@@ -1,9 +1,20 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppDispatch, RootState } from "@/store/store";
 import { useDispatch, useSelector } from "react-redux";
 import FetchApiWrapper from "@/utils/FetchApiWrapper";
 
 import { Link, Outlet, useLocation, useParams } from "react-router-dom";
+
+interface Message {
+  _id: string;
+  content: string;
+  senderId: string;
+  receiverId: string;
+  isRead: boolean;
+  createdAt: Date;
+  timeStamp: Date;
+  updatedAt?: Date;
+}
 
 import {
   Select,
@@ -36,8 +47,10 @@ type Friend = {
 };
 
 type Group = {
+  latestMessage: { content: string; senderId: string };
   _id: string;
-  name: string;
+  name?: string;
+  username?: string;
   members: [];
   admin: string;
 };
@@ -77,6 +90,54 @@ const Home = () => {
     newSocket.on("active-users", (data) => {
       setActiveUsers(data);
       // console.log(data);
+    });
+
+    newSocket.on("receive-message", (data) => {
+      console.log("Received message in Home:", data.data);
+
+      const { content, senderId, isGroupMessage, timeStamp } = data.data;
+
+      // Handle the received message
+      if (isGroupMessage) {
+        const { groupId } = data.data;
+        // Update latest message for groups
+        setGroups((prevGroups) =>
+          prevGroups.map((group) => {
+            if (groupId === group._id) {
+              return {
+                ...group,
+                latestMessage: {
+                  content: content,
+                  senderId: senderId,
+                  timeStamp: timeStamp,
+                },
+              };
+            }
+            return group;
+          })
+        );
+      } else {
+        const { receiverId } = data.data;
+        // Update latest message for users
+        setUsers((prevUsers) =>
+          prevUsers.map((user) => {
+            if (
+              (senderId === user._id && receiverId === _id) || // If the user sent the message
+              (senderId === _id && receiverId === user._id) // If the user received the message
+            ) {
+              return {
+                ...user,
+                latestMessage: {
+                  content: content,
+                  senderId: senderId,
+                  timeStamp: timeStamp,
+                },
+              };
+            }
+            return user;
+          })
+        );
+      }
     });
 
     newSocket.on("disconnect", () => {
@@ -239,7 +300,8 @@ const Home = () => {
           </div>
           <ScrollArea className="">
             {users.map((friend: Friend) => {
-              const { _id, username } = friend;
+              // console.log("friends", friend);
+              const { _id, username, latestMessage } = friend;
               const isOnline = activeUsers.includes(friend._id);
               return (
                 <Link
@@ -265,7 +327,7 @@ const Home = () => {
                         {username}
                       </p>
                       <p className="text-xs text-gray-500 truncate">
-                        {"Unknown"}
+                        {latestMessage?.content || "Unknown"}
                       </p>
                     </div>
                   </div>
@@ -296,7 +358,12 @@ const Home = () => {
             <div>
               {groups.map((group: Group) => {
                 // console.log("group", group);
-                const { _id: groupID, username, members } = group;
+                const {
+                  _id: groupID,
+                  username,
+                  latestMessage,
+                  members,
+                } = group;
                 const isOnline = members.some(
                   (member) => member !== _id && activeUsers.includes(member)
                 );
@@ -324,7 +391,7 @@ const Home = () => {
                           {group?.name}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
-                          {"Unknown"}
+                          {latestMessage?.content || "Unknown"}
                         </p>
                       </div>
                     </div>

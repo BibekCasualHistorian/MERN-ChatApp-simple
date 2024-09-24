@@ -7,13 +7,51 @@ const {
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 
+const MessageModel = require("../models/messageModel");
+
 const getAllUsersController = async (req, res, next) => {
   try {
-    const users = await UserModel.find({});
-    res
-      .status(200)
-      .json({ success: true, message: "All users fetched", data: users });
+    const currentUserId = req.user.user._id;
+
+    const users = await UserModel.find({
+      _id: { $ne: currentUserId },
+      isVerified: true,
+    });
+
+    const usersWithLatestMessage = await Promise.all(
+      users.map(async (user) => {
+        try {
+          const latestMessage = await MessageModel.findOne({
+            $or: [
+              { senderId: currentUserId, receiverId: user._id },
+              { receiverId: currentUserId, senderId: user._id },
+            ],
+          }).sort({ createdAt: -1 });
+
+          return {
+            ...user.toObject(),
+            latestMessage: latestMessage || null,
+          };
+        } catch (error) {
+          console.error(
+            `Error fetching latest message for user ${user._id}:`,
+            error
+          );
+          return {
+            ...user.toObject(),
+            latestMessage: null,
+          };
+        }
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "All users fetched with latest messages",
+      data: usersWithLatestMessage,
+    });
   } catch (error) {
+    console.error("Error fetching users:", error);
     next(error);
   }
 };

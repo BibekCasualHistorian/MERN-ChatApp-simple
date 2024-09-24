@@ -25,7 +25,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   isActive,
   activeUsers,
 }) => {
-  // console.log("activeUsers", activeUsers);
+  console.log("activeUsers", activeUsers);
   const [friendOrGroup, setFriendOrGroup] = useState<FriendOrGroup | null>(
     null
   );
