@@ -22,6 +22,19 @@ module.exports = (io) => {
         return;
       }
 
+      const existingSocketId = connectedUserIdToSocketId.get(data._id);
+
+      if (existingSocketId) {
+        // If user is already connected, send an error or handle it
+        socket.emit("error", {
+          message: `User ${data._id} is already connected with socket ${existingSocketId}.`,
+        });
+        console.log(
+          `User ${data._id} is already connected with socket ${existingSocketId}.`
+        );
+        return; // Stop further execution
+      }
+
       connectedUserIdToSocketId.set(data._id, socket.id);
 
       // Emit a response back to the client who registered,  send back to whoever sent it
@@ -114,14 +127,14 @@ module.exports = (io) => {
 
       // // Send updated list of active users to the group
       // const activeUsers = activeRooms.find((room) => room[0] === groupId)[1];
-      // io.to(groupId).emit("active-users", { users: activeUsers });
+      io.emit("active-users", handleActiveUsers());
 
       // console.log("activeRooms:", activeRooms);
     });
 
     socket.on("send-msg", async function (data) {
       console.log("data in send-msg", data);
-      // console.log("connectedUserIdToSocket", connectedUserIdToSocketId);
+      console.log("connectedUserIdToSocket", connectedUserIdToSocketId);
       // save the message to the database
       try {
         if (data.isGroupMessage) {
@@ -176,10 +189,11 @@ module.exports = (io) => {
           //     message: "User not found or offline",
           //   });
           // }
+          console.log("reciepientSocketId", recipientSocketId);
+          socket.emit("receive-message", { data: oneToOneMessage }); // sends to oneself
           io.to(recipientSocketId).emit("receive-message", {
             data: oneToOneMessage,
           }); // send to user who have specific socket id
-          socket.emit("receive-message", { data: oneToOneMessage });
         }
       } catch (error) {
         console.log("error in send-msg", error);

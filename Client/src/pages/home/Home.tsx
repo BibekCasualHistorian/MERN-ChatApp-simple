@@ -35,21 +35,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 
 type Friend = {
   _id: string;
   username: string;
-  latestMessage: string;
+  latestMessage: { content: string; senderId: string };
   time: string;
-
   avatarUrl: string;
 };
 
 type Group = {
-  latestMessage: { content: string; senderId: string };
+  latestMessage?: { content: string; senderId: string };
   _id: string;
-  name?: string;
+  name: string;
   username?: string;
   members: [];
   admin: string;
@@ -71,7 +70,7 @@ const Home = () => {
   // Track window width state and minimize re-renders
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
-  const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   const [activeUsers, setActiveUsers] = useState([]);
 
@@ -79,6 +78,7 @@ const Home = () => {
 
   useEffect(() => {
     if (socket) return;
+    // if (!socket.connected) return;
     const newSocket = io("http://localhost:3000");
     setSocket(newSocket);
 
@@ -92,59 +92,62 @@ const Home = () => {
       // console.log(data);
     });
 
-    newSocket.on("receive-message", (data) => {
-      console.log("Received message in Home:", data.data);
+    newSocket.on(
+      "receive-message",
+      (data: {
+        data: Message & { isGroupMessage?: boolean; groupId?: string };
+      }) => {
+        console.log("Received message in Home:", data.data);
 
-      const { content, senderId, isGroupMessage, timeStamp } = data.data;
+        const { senderId } = data.data;
 
-      // Handle the received message
-      if (isGroupMessage) {
-        const { groupId } = data.data;
-        // Update latest message for groups
-        setGroups((prevGroups) =>
-          prevGroups.map((group) => {
-            if (groupId === group._id) {
-              return {
-                ...group,
-                latestMessage: {
-                  content: content,
-                  senderId: senderId,
-                  timeStamp: timeStamp,
-                },
-              };
-            }
-            return group;
-          })
-        );
-      } else {
-        const { receiverId } = data.data;
-        // Update latest message for users
-        setUsers((prevUsers) =>
-          prevUsers.map((user) => {
-            if (
-              (senderId === user._id && receiverId === _id) || // If the user sent the message
-              (senderId === _id && receiverId === user._id) // If the user received the message
-            ) {
-              return {
-                ...user,
-                latestMessage: {
-                  content: content,
-                  senderId: senderId,
-                  timeStamp: timeStamp,
-                },
-              };
-            }
-            return user;
-          })
-        );
+        // Handle the received message
+        if (data.data.isGroupMessage) {
+          const { groupId } = data.data;
+          // Update latest message for groups
+          setGroups((prevGroups: Group[]) =>
+            prevGroups.map((group: Group) => {
+              if (groupId === group._id) {
+                return {
+                  ...group,
+                  latestMessage: {
+                    ...data.data,
+                  },
+                };
+              }
+              return group;
+            })
+          );
+        } else {
+          const { receiverId } = data.data;
+          console.log();
+          // Update latest message for users
+          setUsers((prevUsers) =>
+            prevUsers.map((user) => {
+              if (
+                (senderId === user._id && receiverId === _id) || // If the user sent the message
+                (senderId === _id && receiverId === user._id) // If the user received the message
+              ) {
+                return {
+                  ...user,
+                  latestMessage: {
+                    ...data.data,
+                  },
+                };
+              }
+              return user;
+            })
+          );
+        }
       }
-    });
+    );
 
     newSocket.on("disconnect", () => {
       console.log("Disconnected from server");
     });
 
     return () => {
+      newSocket.off("receive-message");
       newSocket.disconnect();
     };
   }, [_id]);
@@ -243,6 +246,8 @@ const Home = () => {
     }
   };
 
+  // console.log("activeUsers", activeUsers);
+
   return (
     <div className="grid grid-cols-5">
       {((isMobile && location.pathname == "/") || !isMobile) && (
@@ -302,7 +307,7 @@ const Home = () => {
             {users.map((friend: Friend) => {
               // console.log("friends", friend);
               const { _id, username, latestMessage } = friend;
-              const isOnline = activeUsers.includes(friend._id);
+              const isOnline = activeUsers?.includes(_id);
               return (
                 <Link
                   key={_id}
@@ -358,12 +363,7 @@ const Home = () => {
             <div>
               {groups.map((group: Group) => {
                 // console.log("group", group);
-                const {
-                  _id: groupID,
-                  username,
-                  latestMessage,
-                  members,
-                } = group;
+                const { _id: groupID, name, latestMessage, members } = group;
                 const isOnline = members.some(
                   (member) => member !== _id && activeUsers.includes(member)
                 );
@@ -379,16 +379,14 @@ const Home = () => {
                     <div className="flex items-center">
                       {/* Avatar */}
                       <Avatar className="w-12 h-12 mr-3">
-                        <AvatarImage alt={username} />
-                        <AvatarFallback>
-                          {group?.name.charAt(0) || "U"}
-                        </AvatarFallback>
+                        <AvatarImage alt={name} />
+                        <AvatarFallback>{name.charAt(0) || "U"}</AvatarFallback>
                       </Avatar>
 
                       {/* Name and Latest Message */}
                       <div>
                         <p className="text-sm font-semibold overflow-hidden">
-                          {group?.name}
+                          {name}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {latestMessage?.content || "Unknown"}

@@ -96,17 +96,14 @@ const Chat = () => {
   }, [chatPartnerId, fetchMessages]);
 
   useEffect(() => {
+    // console.log("socket in chat.tsx", socket);
     if (!socket) return;
+    // if (!socket.connected) return;
     // chatPartner is same as first as we don't want to reruns everytime chatPartnerId
     // changes so chatPartner remeain same even when click to next user and this causes pro
     // blem in "send-msg" socket event so we are going to use useRef
     // const newSocket = io("http://localhost:3000");
     // setSocket(newSocket);
-
-    // socket.on("connect", () => {
-    //   console.log("Connected to the server in Chat.tsx:");
-    //   socket.emit("register", { _id });
-    // });
 
     socket.on("new-user-connected", (data: RegisterResponse) => {
       console.log("new-user-connected", data);
@@ -124,17 +121,23 @@ const Chat = () => {
       console.log("user-disconnected-notice", data);
     });
 
-    socket.on("receive-message", (data: Message) => {
-      // console.log(_id, chatPartnerId);
+    socket.on("receive-message", (data: { data: Message }) => {
+      console.log(_id, chatPartnerId);
       // console.log("chatPartnerIdRef", chatPartnerIdRef.current);
-      console.log("receive-message", data);
-      if (data.senderId == _id && data.receiverId == chatPartnerIdRef.current) {
-        // console.log("here is it up");
-        setMessages((prevState) => [data, ...prevState]);
+      console.log("receive-message", data.data);
+      if (
+        data.data.senderId == _id &&
+        data.data.receiverId == chatPartnerIdRef.current
+      ) {
+        console.log("here is it up");
+        setMessages((prevState) => [data.data, ...prevState]);
       }
-      if (data.senderId == chatPartnerIdRef.current && data.receiverId == _id) {
-        // console.log("here is it down");
-        setMessages((prevState) => [data, ...prevState]);
+      if (
+        data.data.senderId == chatPartnerIdRef.current &&
+        data.data.receiverId == _id
+      ) {
+        console.log("here is it down");
+        setMessages((prevState) => [data.data, ...prevState]);
       }
     });
 
@@ -149,7 +152,11 @@ const Chat = () => {
     // return () => {
     //   socket.disconnect();
     // };
-  }, [_id, socket]);
+    // Cleanup function to remove the listener on component unmount
+    return () => {
+      socket.off("receive-message");
+    };
+  }, [_id, socket, chatPartnerId]);
 
   const socketSendMessage = () => {
     if (socket) {
@@ -171,10 +178,10 @@ const Chat = () => {
     >
       <ChatHeader
         isActive={
-          activeUsers != null && activeUsers.includes(chatPartnerId) ? 10 : 0
+          activeUsers != null && activeUsers?.includes(chatPartnerId) ? 10 : 0
         }
         id={chatPartnerId}
-        activeMembers={null}
+        activeUsers={null}
         url={new URL(`http://localhost:3000/api/auth/get-user`)}
       />
       <ChatDisplay
@@ -199,7 +206,11 @@ const Chat = () => {
           }}
           className="flex-1 mr-2 border-2 border-black"
         />
-        <Button className="px-10" onClick={socketSendMessage}>
+        <Button
+          className="px-10"
+          onClick={socketSendMessage}
+          disabled={!newMessage.length}
+        >
           Send
         </Button>
       </div>

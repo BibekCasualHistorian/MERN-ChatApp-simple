@@ -8,7 +8,7 @@ import { FaArrowCircleLeft } from "react-icons/fa";
 
 interface ChatHeaderProps {
   id: string | undefined;
-  isActive?: number | null;
+  isActive?: number | null | string;
   activeUsers?: [] | null;
   url: URL;
 }
@@ -16,7 +16,7 @@ interface ChatHeaderProps {
 interface FriendOrGroup {
   name?: string;
   username?: string;
-  members?: [];
+  members?: string[];
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -25,11 +25,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   isActive,
   activeUsers,
 }) => {
-  console.log("activeUsers", activeUsers);
   const [friendOrGroup, setFriendOrGroup] = useState<FriendOrGroup | null>(
     null
   );
-  const [groupActiveMembers, setGroupActiveMembers] = useState<any[]>([]);
+  const [groupActiveMembers, setGroupActiveMembers] = useState<string[]>([]);
 
   const dispatch = useDispatch<AppDispatch>();
 

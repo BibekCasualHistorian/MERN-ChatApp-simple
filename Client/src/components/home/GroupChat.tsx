@@ -25,16 +25,16 @@ import { Socket } from "socket.io-client";
 //   nextCursor: Date;
 // };
 
-// type GroupMessage = {
-//   _id: string;
-//   senderId: string;
-//   groupId: string;
-//   receiverId: null;
-//   isRead: boolean;
-//   timeStamp: Date;
-//   content: string;
-//   isGroupMessage: boolean;
-// };
+type GroupMessage = {
+  _id: string;
+  senderId: string;
+  groupId: string;
+  receiverId: null; // Explicitly stating as null for group messages
+  isRead: boolean;
+  timeStamp: Date;
+  content: string;
+  isGroupMessage: boolean;
+};
 
 type ContextType = { socket: Socket | null; activeUsers: [] };
 
@@ -51,12 +51,11 @@ const GroupChat = () => {
 
   const [newMessage, setNewMessage] = useState("");
 
-  const [groupMessages, setGroupMessages] = useState<[]>([]);
+  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
 
   const { socket, activeUsers } = useOutletContext<ContextType>();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(id); // Create a ref for chatPartnerId
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -94,15 +93,19 @@ const GroupChat = () => {
     const url = new URL(
       `http://localhost:3000/api/groups/get-group-messages/${id}`
     );
-    url.searchParams.set("nextCursor", nextCursor);
+    if (nextCursor) {
+      url.searchParams.set("nextCursor", nextCursor);
+    }
     // console.log("url", url);
     const { response, data } = await FetchApiWrapper(url, {}, dispatch);
     if (response.ok) {
       const { data: messages, nextCursor, success } = data;
 
-      setGroupMessages((prevMessages) => [...prevMessages, ...messages]);
-      setNextCursor(nextCursor);
-      setHasMoreMessages(nextCursor == null ? false : true);
+      if (success) {
+        setGroupMessages((prevMessages) => [...prevMessages, ...messages]);
+        setNextCursor(nextCursor);
+        setHasMoreMessages(nextCursor == null ? false : true);
+      }
     }
     setLoading(false);
   }, [dispatch, id, nextCursor]);
@@ -139,30 +142,52 @@ const GroupChat = () => {
       userId: _id,
     });
 
-    const handleNewUserConnected = (data) => {
-      console.log("data in new-user-connected", data);
+    const handleNewUserConnected = (data: object) => {
+      console.log(data);
     };
 
-    const handleRoomJoined = (data) => {
-      console.log("room joined", data);
+    const handleRoomJoined = (data: object) => {
+      console.log(data);
     };
 
-    const handleRoomJoinedNotice = (data) => {
-      console.log("room-joined-notice", data);
+    const handleRoomJoinedNotice = (data: object) => {
+      console.log(data);
     };
 
-    const handleGroupLeft = (data) => {
-      console.log("group-left", data);
+    const handleGroupLeft = (data: object) => {
+      console.log(data);
     };
 
-    const handleGroupLeftNotice = (data) => {
-      console.log("group-left-notice", data);
+    const handleGroupLeftNotice = (data: object) => {
+      console.log(data);
     };
 
-    const handleReceiveMessage = (data) => {
+    const handleReceiveMessage = (data: {
+      data: {
+        _id: string;
+        content: string;
+        senderId: string;
+        groupId?: string;
+        receiverId?: string;
+        isGroupMessage: boolean;
+        timeStamp: Date;
+      };
+    }) => {
       const { isGroupMessage } = data.data;
       if (isGroupMessage) {
-        setGroupMessages((prevState) => [data.data, ...prevState]);
+        setGroupMessages((prevState: GroupMessage[]) => [
+          {
+            _id: data.data._id,
+            content: data.data.content,
+            senderId: data.data.senderId,
+            groupId: data.data.groupId || "", // Ensure it's a string
+            receiverId: null, // Assuming group message doesn't have receiverId
+            isRead: false, // Set default value or modify based on your logic
+            timeStamp: new Date(data.data.timeStamp), // Ensure it's a Date object
+            isGroupMessage: true, // Set based on your requirements
+          },
+          ...prevState,
+        ]);
       }
     };
     const handleAlreadyJoined = (data: { message: string }) => {

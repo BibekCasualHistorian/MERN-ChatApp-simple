@@ -14,12 +14,25 @@ interface Message {
   updatedAt?: Date;
 }
 
+interface GroupMessage {
+  _id: string;
+  senderId: string;
+  groupId: string;
+  receiverId: null; // Explicitly stating as null for group messages
+  isRead: boolean;
+  timeStamp: Date;
+  content: string;
+  isGroupMessage: boolean;
+}
+
+type ChatMessage = GroupMessage | Message;
+
 type ChatDisplayProps = {
-  messages: Message[];
+  messages: ChatMessage[];
   loading: boolean;
-  handleFetchore: any;
+  handleFetchMore: () => void;
   hasMoreMessages: boolean;
-  scrollTimeOutRef: NodeJS.Timeout | null;
+  scrollTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>; // Adjust type here;
 };
 
 const ChatDisplay = ({
